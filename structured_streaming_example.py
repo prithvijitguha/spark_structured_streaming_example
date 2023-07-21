@@ -1,7 +1,10 @@
 # Databricks notebook source
-from pyspark.sql import SparkSession 
+from pyspark.sql import SparkSession
 
-spark = SparkSession.builder.getOrCreate() 
+# You don't need to define the SparkSession entry point if you're on Databricks,
+# however its good to keep your code compatible
+# with multiple Spark ecosystems
+spark = SparkSession.builder.getOrCreate()
 
 print(spark.version)
 
@@ -18,7 +21,7 @@ sample_dataset_schema = StructType([\
     StructField("Lastname",StringType(),True),\
     StructField("Jedi_Rank", StringType(), True),\
     StructField("IsCouncilMember", BooleanType(), True),\
-    StructField("snapshot_date", StringType(), True) 
+    StructField("snapshot_date", StringType(), True)
 ])
 
 # COMMAND ----------
@@ -33,16 +36,16 @@ df_sink = spark.readStream.format("csv")\
 
 from pyspark.sql.functions import input_file_name, col, current_timestamp
 
-# we can add some other parameters like renaming the columns to a more standardized snake_case format 
-# and adding input file name and record load timestamp 
+# we can add some other parameters like renaming the columns to a more standardized snake_case format
+# and adding input file name and record load timestamp
 df_standardized = df_sink.select(
     col("Firstname").alias("first_name"),
     col("Lastname").alias("last_name"),
     col("Jedi_Rank").alias("jedi_rank"),
     col("IsCouncilMember").alias("is_council_member"),
     col("snapshot_date").cast("date"),
-    input_file_name().alias("source_file_name"), 
-    current_timestamp().alias("record_load_timestamp"), 
+    input_file_name().alias("source_file_name"),
+    current_timestamp().alias("record_load_timestamp"),
 )
 
 # COMMAND ----------
@@ -50,7 +53,7 @@ df_standardized = df_sink.select(
 # let's create our target database for reference
 spark.sql("CREATE DATABASE IF NOT EXISTS harmonized_data")
 
-# Now we an write the stream to 
+# Now we an write the stream to
 # a target location and specify a checkpoint as well
 df_standardized.writeStream\
   .format("parquet")\
@@ -64,7 +67,7 @@ df_standardized.writeStream\
 
 # COMMAND ----------
 
-spark.read.table("harmonized_data.hrz_sample_dataset").display()
+spark.read.table("harmonized_data.hrz_sample_dataset").show() # or display() if you're using this inside databricks
 
 # COMMAND ----------
 
