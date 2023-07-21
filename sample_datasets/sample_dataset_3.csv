@@ -1,0 +1,4 @@
+First_name,Last_name,Jedi_Rank,IsCouncilMember,snapshot_date
+Obi,Wan,Knight,true,2005-01-01
+Anakin,Skywalker,Knight,true,2005-01-01
+Mace,Windu,Master,true,2005-01-01
