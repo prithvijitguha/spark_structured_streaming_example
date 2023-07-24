@@ -73,13 +73,6 @@ display(spark.read.table("hrz_sample_dataset"))
 
 # COMMAND ----------
 
-dbutils.fs.rm("dbfs:/sample_dataset_checkpoint/", True)
-dbutils.fs.rm("dbfs:/user/hive/warehouse/hrz_sample_dataset", True)
-spark.sql("DROP TABLE IF EXISTS hrz_sample_dataset")
-
-
-# COMMAND ----------
-
 # Alternate forms of reading data, read from table
 # In this case we only update the pipeline the table is updated 
 df_sink_table_format = spark.readStream.table("hrz_sample_dataset")
@@ -115,6 +108,86 @@ dbutils.fs.rm(checkpoint_path, True)
 
 # COMMAND ----------
 
+# MAGIC %pip install flowrunner
+
+# COMMAND ----------
+
+from flowrunner import BaseFlow, end, start, step
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType, BooleanType
+from pyspark.sql.functions import input_file_name, col, current_timestamp
+
+
+spark = SparkSession.builder.getOrCreate()
+
+
+class IngestionFlow(BaseFlow):
+    @start
+    @step(next=["standardize_data"])
+    def read_data_stream(self):
+        """
+        This method is used to read the datastream
+        """
+        # The schema specification is only required for json and csv. Parquet, Delta and orc should be fine without it
+        sample_dataset_schema = StructType([\
+            StructField("Firstname",StringType(),True),\
+            StructField("Lastname",StringType(),True),\
+            StructField("Jedi_Rank", StringType(), True),\
+            StructField("IsCouncilMember", BooleanType(), True),\
+            StructField("snapshot_date", StringType(), True) 
+        ])
+
+        # Read the dataframe into a stream specifying the schema and load data directory
+        self.df_sink = spark.readStream.format("csv")\
+            .load("dbfs:/FileStore/source_directory/*.csv", schema=sample_dataset_schema, header=True)
+
+        
+
+    @step(next=["write_datastream"])
+    def standardize_data(self):
+        """
+        This method we standardize the data a little bit with some column renaming 
+        """        
+        # we can add some other parameters like renaming the columns to a more standardized snake_case format 
+        # and adding input file name and record load timestamp 
+        self.df_standardized = self.df_sink.select(
+            col("Firstname").alias("first_name"),
+            col("Lastname").alias("last_name"),
+            col("Jedi_Rank").alias("jedi_rank"),
+            col("IsCouncilMember").alias("is_council_member"),
+            col("snapshot_date").cast("date"),
+            input_file_name().alias("source_file_name"), 
+            current_timestamp().alias("record_load_timestamp"), 
+        )
+
+    @end
+    @step
+    def write_datastream(self):
+        """
+        Here we write the dataframe to final DBFS/HDFS location
+        """
+        # Now we an write the stream to 
+        # a target location and specify a checkpoint as well
+        self.df_standardized.writeStream\
+        .format("parquet")\
+        .outputMode("append")\
+        .trigger(availableNow=True)\
+        .partitionBy("snapshot_date")\
+        .option("checkpointLocation", "dbfs:/sample_flow_checkpoint/")\
+        .toTable("hrz_sample_dataset_flow")
+
+
+
+ingestion_flow = IngestionFlow() # create instance of pipeline 
+ingestion_flow.display() # display your flow without running it
+
+# COMMAND ----------
+
+ingestion_flow.run()
+
+# COMMAND ----------
+
+# Example of Abstract Factory Ingestion Pipeline
 from dataclasses import dataclass
 
 
