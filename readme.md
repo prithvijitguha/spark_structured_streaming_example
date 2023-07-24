@@ -1,4 +1,4 @@
-# Spark Structured Streaming Example
+# PySpark Structured Streaming Example
 
 An example repo of using Spark Structured Streaming for Ingestion Workloads
 
